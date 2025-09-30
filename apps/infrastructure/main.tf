@@ -12,15 +12,11 @@ terraform {
   }
 }
 
-variable "DATABASE_URL" {
-  type      = string
-  sensitive = true
-}
-
 provider "aws" {
   region = "us-west-2"
 }
 
+# Setting up backend to store tf state
 resource "aws_s3_bucket" "terraform_state" {
   bucket = "tts-terraform-state-5qeww9"
 
@@ -29,6 +25,7 @@ resource "aws_s3_bucket" "terraform_state" {
   }
 }
 
+# Creating CDN/Reverse Proxy
 module "cloudfront" {
   source  = "terraform-aws-modules/cloudfront/aws"
   version = "5.0.0"
@@ -49,7 +46,6 @@ module "cloudfront" {
       signing_protocol = "sigv4"
     }
   }
-
 
   origin = {
     webapp = {
@@ -102,6 +98,7 @@ module "cloudfront" {
 }
 
 
+# Setting up frontend bucket
 resource "aws_s3_bucket" "webapp" {
   bucket = "tts-webapp-j3n7wx"
 }
@@ -129,8 +126,22 @@ resource "aws_s3_bucket_policy" "bucket_policy" {
   policy = data.aws_iam_policy_document.s3_policy.json
 }
 
+# Creating serverless api
+variable "DATABASE_URL" {
+  type      = string
+  sensitive = true
+}
+
+locals {
+  endpoints = [
+    { method = "GET", route = "/api", handler = "getRoot" },
+    { method = "POST", route = "/api/user", handler = "postUser" },
+  ]
+}
+
 module "api_gateway" {
-  source = "terraform-aws-modules/apigateway-v2/aws"
+  source  = "terraform-aws-modules/apigateway-v2/aws"
+  version = "5.3.1"
 
   name          = "tts-apigateway"
   description   = "API gateway for tracer time sync"
@@ -147,20 +158,11 @@ module "api_gateway" {
   create_domain_records = false
 
   routes = {
-    "GET /api" = {
+    for ep in local.endpoints : "${ep.method} ${ep.route}" => {
       detailed_metrics_enabled = false
 
       integration = {
-        uri                    = module.getRoot.lambda_function_arn
-        payload_format_version = "2.0"
-        timeout_milliseconds   = 12000
-      }
-    }
-    "POST /api/user" = {
-      detailed_metrics_enabled = false
-
-      integration = {
-        uri                    = module.postUser.lambda_function_arn
+        uri                    = module.lambda_functions[ep.handler].lambda_function_arn
         payload_format_version = "2.0"
         timeout_milliseconds   = 12000
       }
@@ -168,33 +170,14 @@ module "api_gateway" {
   }
 }
 
-module "getRoot" {
-  source = "terraform-aws-modules/lambda/aws"
+module "lambda_functions" {
+  for_each = { for ep in local.endpoints : ep.handler => ep }
 
-  function_name = "tts-getRoot"
-  handler       = "index.getRoot"
-  runtime       = "nodejs22.x"
-  publish       = true
+  source  = "terraform-aws-modules/lambda/aws"
+  version = "8.1.0"
 
-  source_path = "../api/dist"
-
-  environment_variables = {
-    DATABASE_URL = var.DATABASE_URL
-  }
-
-  allowed_triggers = {
-    AllowExecutionFromAPIGateway = {
-      service    = "apigateway"
-      source_arn = "${module.api_gateway.api_execution_arn}/*/*"
-    }
-  }
-}
-
-module "postUser" {
-  source = "terraform-aws-modules/lambda/aws"
-
-  function_name = "tts-postUser"
-  handler       = "index.postUser"
+  function_name = "tts-${each.value.handler}"
+  handler       = "index.${each.value.handler}"
   runtime       = "nodejs22.x"
   publish       = true
 
