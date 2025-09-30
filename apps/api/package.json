@@ -1,0 +1,22 @@
+{
+  "name": "api",
+  "scripts": {
+    "dev": "esbuild ./src/index.ts --bundle --platform=node --target=node22.20 --outfile=./dist/index.js --watch",
+    "build": "esbuild ./src/index.ts --bundle --platform=node --target=node22.20 --outfile=./dist/index.js",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.152",
+    "@types/node": "^24.6.0",
+    "drizzle-kit": "^0.31.5",
+    "esbuild": "^0.25.10",
+    "typescript": "catalog:"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.1",
+    "drizzle-orm": "^0.44.5",
+    "redaxios": "^0.5.1"
+  }
+}

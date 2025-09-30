@@ -1,0 +1,19 @@
+{
+  "name": "tracer-time-sync",
+  "private": true,
+  "engines": {
+    "node": "22.20",
+    "pnpm": "10"
+  },
+  "scripts": {
+    "dev": "mprocs",
+    "dev:api": "pnpm --filter api dev",
+    "dev:webapp": "pnpm --filter webapp dev",
+    "build:api": "pnpm --filter api build",
+    "build:webapp": "pnpm --filter webapp build"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "mprocs": "^0.7.3"
+  }
+}

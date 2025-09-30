@@ -1,0 +1,8 @@
+procs:
+  webapp:
+    shell: "pnpm dev:webapp"
+  api:
+    shell: "pnpm dev:api"
+hide_keymap_window: true
+scrollback: 1000000
+proc_list_width: 15

@@ -137,3 +137,22 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+# Terraform state files
+*.tfstate
+*.tfstate.*backup
+
+# Local Terraform directories
+.terraform/
+
+# Terraform CLI configuration files
+.terraformrc
+terraform.rc
+
+# Variable definition files (if they contain sensitive data and are not meant for sharing)
+*.tfvars
+*.tfvars.json
+
+# Crash log files from Terraform
+crash.log
+
+builds/
