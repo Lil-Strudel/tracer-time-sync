@@ -5,7 +5,8 @@
     "build": "esbuild ./src/index.ts --bundle --platform=node --target=node22.20 --outfile=./dist/index.js",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.152",
@@ -16,6 +17,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.1",
+    "dotenv": "^17.2.3",
     "drizzle-orm": "^0.44.5",
     "redaxios": "^0.5.1"
   }

@@ -93,6 +93,20 @@ module "cloudfront" {
 
       # AllViewerExceptHostHeader
       origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
+    },
+    {
+      path_pattern     = "/index.html"
+      target_origin_id = "webapp"
+
+      compress               = true
+      viewer_protocol_policy = "redirect-to-https"
+      allowed_methods        = ["GET", "HEAD", "OPTIONS"]
+      cached_methods         = ["GET", "HEAD"]
+
+      use_forwarded_values = false
+
+      # CachingDisabled
+      cache_policy_id = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
     }
   ]
 }
@@ -134,8 +148,7 @@ variable "DATABASE_URL" {
 
 locals {
   endpoints = [
-    { method = "GET", route = "/api", handler = "getRoot" },
-    { method = "POST", route = "/api/user", handler = "postUser" },
+    { method = "POST", route = "/api/sync-all", handler = "postSyncAll" },
   ]
 }
 
@@ -180,6 +193,9 @@ module "lambda_functions" {
   handler       = "index.${each.value.handler}"
   runtime       = "nodejs22.x"
   publish       = true
+
+  memory_size = 512
+  timeout     = 12
 
   source_path = "../api/dist"
 
