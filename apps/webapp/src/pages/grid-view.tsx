@@ -103,6 +103,7 @@ const GridView: Component = () => {
 
   return (
     <div class="p-4 space-y-4">
+      The Deploy Worked!!
       <div class="flex justify-between items-center">
         <h1 class="text-xl font-bold">Aid Station Sync</h1>
         <button
@@ -112,7 +113,6 @@ const GridView: Component = () => {
           Sync All
         </button>
       </div>
-
       <div class="flex space-x-2">
         <button
           onClick={() => setSortBy("bib")}
@@ -131,7 +131,6 @@ const GridView: Component = () => {
           Sort by Progress
         </button>
       </div>
-
       <div class="overflow-x-auto">
         <table class="table-auto border-collapse border border-gray-300 w-full text-sm">
           <thead>

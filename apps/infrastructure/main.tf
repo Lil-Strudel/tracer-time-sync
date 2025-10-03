@@ -148,6 +148,7 @@ variable "DATABASE_URL" {
 
 locals {
   endpoints = [
+    { method = "GET", route = "/api/ping", handler = "getPing" },
     { method = "POST", route = "/api/sync-all", handler = "postSyncAll" },
   ]
 }

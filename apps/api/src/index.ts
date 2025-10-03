@@ -77,6 +77,15 @@ function makeRawTimePayload(
   };
 }
 
+export const getPing: APIGatewayHandler = async (event, context, callback) => {
+  logRequest(event, context);
+
+  callback(null, {
+    statusCode: 200,
+    body: JSON.stringify({ message: "Pong!" }),
+  });
+};
+
 export const postSyncAll: APIGatewayHandler = async (
   event,
   context,
