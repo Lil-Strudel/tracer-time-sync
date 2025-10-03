@@ -151,6 +151,7 @@ locals {
     { method = "GET", route = "/api/ping", handler = "getPing" },
     { method = "POST", route = "/api/sync-all", handler = "postSyncAll" },
     { method = "GET", route = "/api/logs", handler = "getLogs" },
+    { method = "GET", route = "/api/sync-status", handler = "getSyncStatus" },
   ]
 }
 
@@ -196,7 +197,7 @@ module "lambda_functions" {
   runtime       = "nodejs22.x"
   publish       = true
 
-  memory_size = 512
+  memory_size = 1024
   timeout     = 12
 
   source_path = "../api/dist"

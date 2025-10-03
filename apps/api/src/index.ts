@@ -1,6 +1,6 @@
 import { Context, APIGatewayProxyCallback, APIGatewayEvent } from "aws-lambda";
 import { db } from "./db";
-import { TrackMyRacerAPI } from "./sdks/tracer";
+import { Entry, Station, TrackMyRacerAPI } from "./sdks/tracer";
 import {
   OpenSplitTimeAPI,
   PostRawTimesRequest,
@@ -293,5 +293,104 @@ export const getLogs: APIGatewayHandler = async (event, context, callback) => {
   callback(null, {
     statusCode: 200,
     body: JSON.stringify(logs),
+  });
+};
+
+type TimeStatus = "synced" | "unsynced" | "missing";
+
+interface TimeValue {
+  value: string | null;
+  status: TimeStatus;
+}
+
+interface AidStationTimes {
+  in: TimeValue;
+  out: TimeValue;
+}
+
+interface ParticipantResult {
+  bib: number;
+  name: string;
+  aidStations: Record<string, AidStationTimes>;
+}
+export const getSyncStatus: APIGatewayHandler = async (
+  event,
+  context,
+  callback,
+) => {
+  logRequest(event, context);
+  const appState = await getAppState();
+
+  const [participants, stations, entries, timeSyncs] = await Promise.all([
+    tracer.getParticipants(appState.tracer_event_id),
+    tracer.getStations(appState.tracer_event_id),
+    tracer.getEntries(appState.tracer_event_id),
+    db.select().from(timeSyncsTable),
+  ]);
+
+  const stationMap = new Map<string, Station>();
+  stations.forEach((s) => stationMap.set(s.id, s));
+
+  const entryMap = new Map<string, Entry[]>();
+  entries.forEach((entry) => {
+    if (!entryMap.has(entry.participantId)) {
+      entryMap.set(entry.participantId, []);
+    }
+    entryMap.get(entry.participantId)!.push(entry);
+  });
+
+  const syncedLookup = new Map<string, Set<string>>();
+  timeSyncs.forEach((sync) => {
+    const key = `${sync.tracer_participant_id}:${sync.tracer_station_id}:${sync.split_kind}`;
+    if (!syncedLookup.has(key)) {
+      syncedLookup.set(key, new Set());
+    }
+    syncedLookup.get(key)!.add(sync.tracer_entry_id);
+  });
+
+  const results: ParticipantResult[] = participants.map((participant) => {
+    const participantEntries = entryMap.get(participant.id) ?? [];
+
+    const entriesByStation = new Map<string, Entry>();
+    participantEntries.forEach((e) => {
+      entriesByStation.set(e.stationId, e);
+    });
+
+    const aidStations: Record<string, AidStationTimes> = {};
+    stations.forEach((station) => {
+      const entry = entriesByStation.get(station.id);
+
+      const getStatus = (
+        value: string | null,
+        splitKind: "in" | "out",
+      ): TimeStatus => {
+        if (!value) return "missing";
+        const key = `${participant.id}:${station.id}:${splitKind}`;
+        const synced = syncedLookup.get(key);
+        return synced && synced.has(entry?._id ?? "") ? "synced" : "unsynced";
+      };
+
+      aidStations[station.name] = {
+        in: {
+          value: entry?.timeIn ?? null,
+          status: getStatus(entry?.timeIn ?? null, "in"),
+        },
+        out: {
+          value: entry?.timeOut ?? null,
+          status: getStatus(entry?.timeOut ?? null, "out"),
+        },
+      };
+    });
+
+    return {
+      bib: participant.bibNumber,
+      name: `${participant.firstName} ${participant.lastName}`,
+      aidStations,
+    };
+  });
+
+  callback(null, {
+    statusCode: 200,
+    body: JSON.stringify(results),
   });
 };
