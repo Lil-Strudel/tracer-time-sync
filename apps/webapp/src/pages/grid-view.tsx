@@ -1,4 +1,5 @@
 import { type Component, createSignal, createMemo, For, Show } from "solid-js";
+import LogsViewer from "../components/log-viewer";
 
 type TimeStatus = "synced" | "unsynced" | "missing";
 
@@ -102,6 +103,7 @@ const GridView: Component = () => {
       console.log("Sync completed successfully");
     } catch (error) {
       console.error("Sync failed:", error);
+      // You might want to show an error message to the user
     } finally {
       setIsSyncing(false);
     }
@@ -123,123 +125,128 @@ const GridView: Component = () => {
   };
 
   return (
-    <div class="p-4 space-y-4">
-      <div class="flex justify-between items-center">
-        <h1 class="text-xl font-bold">Aid Station Sync</h1>
-        <button
-          onClick={syncAll}
-          disabled={isSyncing()}
-          class={`px-4 py-2 rounded-lg shadow flex items-center gap-2 ${
-            isSyncing()
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-blue-600 hover:bg-blue-700"
-          } text-white`}
-        >
-          <Show when={isSyncing()}>
-            <div class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-          </Show>
-          {isSyncing() ? "Syncing..." : "Sync All"}
-        </button>
-      </div>
-      <div class="flex space-x-2">
-        <button
-          onClick={() => setSortBy("bib")}
-          class={`px-3 py-1 rounded ${
-            sortBy() === "bib" ? "bg-blue-500 text-white" : "bg-gray-200"
-          }`}
-        >
-          Sort by Bib
-        </button>
-        <button
-          onClick={() => setSortBy("progress")}
-          class={`px-3 py-1 rounded ${
-            sortBy() === "progress" ? "bg-blue-500 text-white" : "bg-gray-200"
-          }`}
-        >
-          Sort by Progress
-        </button>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="table-auto border-collapse border border-gray-300 w-full text-sm">
-          <thead>
-            <tr class="bg-gray-100">
-              <th class="border border-gray-300 px-2 py-1">Bib</th>
-              <th class="border border-gray-300 px-2 py-1">Name</th>
-              <For each={aidStations}>
-                {(station) => (
-                  <th class="border border-gray-300 px-2 py-1" colspan={2}>
-                    {station}
-                  </th>
+    <div class="flex gap-4 justify-between">
+      <div class="p-4 space-y-4">
+        <div class="flex justify-between items-center">
+          <h1 class="text-xl font-bold">Aid Station Sync</h1>
+          <button
+            onClick={syncAll}
+            disabled={isSyncing()}
+            class={`px-4 py-2 rounded-lg shadow flex items-center gap-2 ${
+              isSyncing()
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-blue-700"
+            } text-white`}
+          >
+            <Show when={isSyncing()}>
+              <div class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+            </Show>
+            {isSyncing() ? "Syncing..." : "Sync All"}
+          </button>
+        </div>
+        <div class="flex space-x-2">
+          <button
+            onClick={() => setSortBy("bib")}
+            class={`px-3 py-1 rounded ${
+              sortBy() === "bib" ? "bg-blue-500 text-white" : "bg-gray-200"
+            }`}
+          >
+            Sort by Bib
+          </button>
+          <button
+            onClick={() => setSortBy("progress")}
+            class={`px-3 py-1 rounded ${
+              sortBy() === "progress" ? "bg-blue-500 text-white" : "bg-gray-200"
+            }`}
+          >
+            Sort by Progress
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="table-auto border-collapse border border-gray-300 w-full text-sm">
+            <thead>
+              <tr class="bg-gray-100">
+                <th class="border border-gray-300 px-2 py-1">Bib</th>
+                <th class="border border-gray-300 px-2 py-1">Name</th>
+                <For each={aidStations}>
+                  {(station) => (
+                    <th class="border border-gray-300 px-2 py-1" colspan={2}>
+                      {station}
+                    </th>
+                  )}
+                </For>
+                <th class="border border-gray-300 px-2 py-1">Actions</th>
+              </tr>
+              <tr class="bg-gray-50">
+                <th></th>
+                <th></th>
+                <For each={aidStations}>
+                  {() => (
+                    <>
+                      <th class="border border-gray-300 px-2 py-1">In</th>
+                      <th class="border border-gray-300 px-2 py-1">Out</th>
+                    </>
+                  )}
+                </For>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <For each={sortedRunners()}>
+                {(runner) => (
+                  <tr>
+                    <td class="border border-gray-300 px-2 py-1">
+                      {runner.bib}
+                    </td>
+                    <td class="border border-gray-300 px-2 py-1">
+                      {runner.name}
+                    </td>
+                    <For each={aidStations}>
+                      {(station) => (
+                        <>
+                          <td
+                            class={`border border-gray-300 px-2 py-1 text-center ${statusColor(
+                              runner.aidStations[station]?.in.status,
+                            )}`}
+                          >
+                            <Show
+                              when={runner.aidStations[station]?.in.value}
+                              fallback={"—"}
+                            >
+                              {runner.aidStations[station]?.in.value}
+                            </Show>
+                          </td>
+                          <td
+                            class={`border border-gray-300 px-2 py-1 text-center ${statusColor(
+                              runner.aidStations[station]?.out.status,
+                            )}`}
+                          >
+                            <Show
+                              when={runner.aidStations[station]?.out.value}
+                              fallback={"—"}
+                            >
+                              {runner.aidStations[station]?.out.value}
+                            </Show>
+                          </td>
+                        </>
+                      )}
+                    </For>
+                    <td class="border border-gray-300 px-2 py-1 text-center">
+                      <button
+                        onClick={() => syncRunner(runner.bib)}
+                        class="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                      >
+                        Sync
+                      </button>
+                    </td>
+                  </tr>
                 )}
               </For>
-              <th class="border border-gray-300 px-2 py-1">Actions</th>
-            </tr>
-            <tr class="bg-gray-50">
-              <th></th>
-              <th></th>
-              <For each={aidStations}>
-                {() => (
-                  <>
-                    <th class="border border-gray-300 px-2 py-1">In</th>
-                    <th class="border border-gray-300 px-2 py-1">Out</th>
-                  </>
-                )}
-              </For>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <For each={sortedRunners()}>
-              {(runner) => (
-                <tr>
-                  <td class="border border-gray-300 px-2 py-1">{runner.bib}</td>
-                  <td class="border border-gray-300 px-2 py-1">
-                    {runner.name}
-                  </td>
-                  <For each={aidStations}>
-                    {(station) => (
-                      <>
-                        <td
-                          class={`border border-gray-300 px-2 py-1 text-center ${statusColor(
-                            runner.aidStations[station]?.in.status,
-                          )}`}
-                        >
-                          <Show
-                            when={runner.aidStations[station]?.in.value}
-                            fallback={"—"}
-                          >
-                            {runner.aidStations[station]?.in.value}
-                          </Show>
-                        </td>
-                        <td
-                          class={`border border-gray-300 px-2 py-1 text-center ${statusColor(
-                            runner.aidStations[station]?.out.status,
-                          )}`}
-                        >
-                          <Show
-                            when={runner.aidStations[station]?.out.value}
-                            fallback={"—"}
-                          >
-                            {runner.aidStations[station]?.out.value}
-                          </Show>
-                        </td>
-                      </>
-                    )}
-                  </For>
-                  <td class="border border-gray-300 px-2 py-1 text-center">
-                    <button
-                      onClick={() => syncRunner(runner.bib)}
-                      class="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-                    >
-                      Sync
-                    </button>
-                  </td>
-                </tr>
-              )}
-            </For>
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </div>
+      <LogsViewer />
     </div>
   );
 };
