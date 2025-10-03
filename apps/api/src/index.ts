@@ -284,3 +284,14 @@ export const postSyncAll: APIGatewayHandler = async (
     body: JSON.stringify({ message: "Success" }),
   });
 };
+
+export const getLogs: APIGatewayHandler = async (event, context, callback) => {
+  logRequest(event, context);
+
+  const logs = await db.select().from(logsTable);
+
+  callback(null, {
+    statusCode: 200,
+    body: JSON.stringify(logs),
+  });
+};
