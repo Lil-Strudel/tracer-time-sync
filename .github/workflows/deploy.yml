@@ -51,9 +51,11 @@ jobs:
           terraform_version: 1.13.3
 
       - name: Terraform Init
+        working-directory: ./apps/infrastructure
         run: terraform init
 
       - name: Terraform Apply
+        working-directory: ./apps/infrastructure
         run: terraform apply -auto-approve
 
       - name: Sync webapp to S3
