@@ -65,6 +65,7 @@ const initialData: Runner[] = [
 const GridView: Component = () => {
   const [runners, setRunners] = createSignal<Runner[]>(initialData);
   const [sortBy, setSortBy] = createSignal<"bib" | "progress">("bib");
+  const [isSyncing, setIsSyncing] = createSignal(false);
 
   const sortedRunners = createMemo(() => {
     let list = [...runners()];
@@ -82,8 +83,28 @@ const GridView: Component = () => {
     return list;
   });
 
-  const syncAll = () => {
-    console.log("Syncing all times...");
+  const syncAll = async () => {
+    if (isSyncing()) return;
+
+    setIsSyncing(true);
+    try {
+      const response = await fetch("/api/sync-all", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      console.log("Sync completed successfully");
+    } catch (error) {
+      console.error("Sync failed:", error);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const syncRunner = (bib: number) => {
@@ -103,14 +124,21 @@ const GridView: Component = () => {
 
   return (
     <div class="p-4 space-y-4">
-      The Deploy Worked!!
       <div class="flex justify-between items-center">
         <h1 class="text-xl font-bold">Aid Station Sync</h1>
         <button
           onClick={syncAll}
-          class="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700"
+          disabled={isSyncing()}
+          class={`px-4 py-2 rounded-lg shadow flex items-center gap-2 ${
+            isSyncing()
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700"
+          } text-white`}
         >
-          Sync All
+          <Show when={isSyncing()}>
+            <div class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+          </Show>
+          {isSyncing() ? "Syncing..." : "Sync All"}
         </button>
       </div>
       <div class="flex space-x-2">

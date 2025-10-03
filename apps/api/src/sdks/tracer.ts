@@ -51,7 +51,7 @@ export interface Race {
 }
 
 export class TrackMyRacerAPI {
-  private baseUrl = "https://trackmyracer.live/api/v1/events";
+  private baseUrl = "https://test.trackmyracer.live/api/v1/events";
 
   async getEntries(eventId: string): Promise<Entry[]> {
     const res = await axios.get<Entry[]>(`${this.baseUrl}/${eventId}/entries`);

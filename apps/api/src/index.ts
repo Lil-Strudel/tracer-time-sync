@@ -6,7 +6,7 @@ import {
   PostRawTimesRequest,
   RawTimePayload,
 } from "./sdks/ost";
-import { timeSyncsTable } from "./db/schema";
+import { appStatesTable, logsTable, timeSyncsTable } from "./db/schema";
 
 type APIGatewayHandler = (
   event: APIGatewayEvent,
@@ -19,14 +19,31 @@ function logRequest(event: APIGatewayEvent, context: Context) {
   console.log(`Context: ${JSON.stringify(context, null, 2)}`);
 }
 
-const REPLACEME_VALUES = {
-  openSplitTimeGroupId: "",
-  openSplitTimeAPIKey: "",
-  tracerEventId: "670136deec99861e39ee339f",
-} as const;
-
 const tracer = new TrackMyRacerAPI();
 const ost = new OpenSplitTimeAPI();
+
+async function getAppState() {
+  const data = await db.select().from(appStatesTable);
+  const appState = data[0];
+  if (!appState) {
+    throw new Error("App state has not been configured");
+  }
+
+  return appState;
+}
+
+export const trytm = async <T>(
+  promise: Promise<T>,
+): Promise<[T, null] | [null, Error]> => {
+  try {
+    const data = await promise;
+    return [data, null];
+  } catch (throwable) {
+    if (throwable instanceof Error) return [null, throwable];
+
+    throw throwable;
+  }
+};
 
 function formatUtahTime(date: Date): string {
   const year = date.getUTCFullYear();
@@ -77,6 +94,21 @@ function makeRawTimePayload(
   };
 }
 
+async function handleError(
+  message: string,
+  err: Error,
+  callback: APIGatewayProxyCallback,
+) {
+  await db.insert(logsTable).values({
+    variant: "error",
+    message,
+    details: JSON.stringify(err, Object.getOwnPropertyNames(err), 2),
+  });
+  callback(err, { statusCode: 500, body: JSON.stringify({ message }) });
+
+  return;
+}
+
 export const getPing: APIGatewayHandler = async (event, context, callback) => {
   logRequest(event, context);
 
@@ -92,12 +124,39 @@ export const postSyncAll: APIGatewayHandler = async (
   callback,
 ) => {
   logRequest(event, context);
+  const [appState, err] = await trytm(getAppState());
+  if (err !== null) {
+    const message = `Error fetching app state`;
+    await handleError(message, err, callback);
+    return;
+  }
 
-  const participants = await tracer.getParticipants(
-    REPLACEME_VALUES.tracerEventId,
+  const [participants, err1] = await trytm(
+    tracer.getParticipants(appState.tracer_event_id),
   );
-  const entries = await tracer.getEntries(REPLACEME_VALUES.tracerEventId);
-  const stations = await tracer.getStations(REPLACEME_VALUES.tracerEventId);
+  if (err1 !== null) {
+    const message = `Could not fetch participants from tracer. Event ID: ${appState.tracer_event_id}`;
+    await handleError(message, err1, callback);
+    return;
+  }
+
+  const [entries, err2] = await trytm(
+    tracer.getEntries(appState.tracer_event_id),
+  );
+  if (err2 !== null) {
+    const message = `Could not fetch entries from tracer. Event ID: ${appState.tracer_event_id}`;
+    await handleError(message, err2, callback);
+    return;
+  }
+
+  const [stations, err3] = await trytm(
+    tracer.getStations(appState.tracer_event_id),
+  );
+  if (err3 !== null) {
+    const message = `Could not fetch stations from tracer. Event ID: ${appState.tracer_event_id}`;
+    await handleError(message, err3, callback);
+    return;
+  }
 
   const requestBody: PostRawTimesRequest = {
     data: [],
@@ -108,7 +167,13 @@ export const postSyncAll: APIGatewayHandler = async (
   const participantMap = new Map(participants.map((p) => [p.id, p]));
   const stationMap = new Map(stations.map((s) => [s.id, s]));
 
-  const timeSyncs = await db.select().from(timeSyncsTable);
+  const [timeSyncs, err4] = await trytm(db.select().from(timeSyncsTable));
+  if (err4 !== null) {
+    const message = `Could not fetch time syncs from the db.`;
+    handleError(message, err4, callback);
+    return;
+  }
+
   const timeSyncSet = new Set(
     timeSyncs.map((r) => `${r.tracer_entry_id}-${r.split_kind}`),
   );
@@ -135,7 +200,6 @@ export const postSyncAll: APIGatewayHandler = async (
     if (entry.timeIn) {
       const key = `${entry.id}-in`;
       if (!timeSyncSet.has(key)) {
-        console.log(JSON.stringify({ station, participant, entry }, null, 2));
         requestBody.data.push(
           makeRawTimePayload(new Date(entry.timeIn), "in", rawTimeData),
         );
@@ -151,7 +215,6 @@ export const postSyncAll: APIGatewayHandler = async (
     if (entry.timeOut) {
       const key = `${entry.id}-out`;
       if (!timeSyncSet.has(key)) {
-        console.log(JSON.stringify({ station, participant, entry }, null, 2));
         requestBody.data.push(
           makeRawTimePayload(new Date(entry.timeOut), "out", rawTimeData),
         );
@@ -166,24 +229,55 @@ export const postSyncAll: APIGatewayHandler = async (
   }
 
   if (newSyncedRows.length > 0 && requestBody.data.length > 0) {
-    await ost.postRawTimes(
-      REPLACEME_VALUES.openSplitTimeGroupId,
-      requestBody,
-      REPLACEME_VALUES.openSplitTimeAPIKey,
+    const [, err5] = await trytm(
+      ost.postRawTimes(
+        appState.ost_group_id,
+        requestBody,
+        appState.ost_api_key,
+      ),
     );
-    await db.insert(timeSyncsTable).values(newSyncedRows);
+    if (err5 !== null) {
+      const message = `There was an error while pushing the times to open split time.`;
+
+      const details = {
+        requestBody,
+        error: JSON.stringify(err, Object.getOwnPropertyNames(err), 2),
+      };
+
+      await db.insert(logsTable).values({
+        variant: "error",
+        message,
+        details: JSON.stringify(details, null, 2),
+      });
+
+      callback(err, { statusCode: 500, body: JSON.stringify({ message }) });
+      return;
+    }
+
+    const [, err6] = await trytm(
+      db.insert(timeSyncsTable).values(newSyncedRows),
+    );
+
+    if (err6 !== null) {
+      const message = `There was an error when saving the synced times to the db.`;
+      await handleError(message, err6, callback);
+      return;
+    }
   }
 
-  console.log(
-    `Values: ${JSON.stringify(
-      {
-        requestBody,
-        newSyncedRows,
-      },
-      null,
-      2,
-    )}`,
+  const [, err7] = await trytm(
+    db.insert(logsTable).values({
+      variant: "success",
+      message: "Successfully synced all times",
+      details: JSON.stringify({ requestBody }, null, 2),
+    }),
   );
+
+  if (err7 !== null) {
+    const message = `There was an error when trying to create the success log`;
+    await handleError(message, err7, callback);
+    return;
+  }
 
   callback(null, {
     statusCode: 200,
